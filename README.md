@@ -1,57 +1,63 @@
 # Orbit SaaS Hypervisor
 
-단일 Laravel 애플리케이션을 강력한 멀티-테넌트(Multi-tenant) 서비스로 변신시켜주는 **Orbit SaaS** 패키지입니다. 
+단일 Laravel 애플리케이션을 가볍고 강력한 멀티-테넌트(Multi-tenant) 환경으로 변신시켜주는 **Orbit SaaS** 하이퍼바이저입니다. 
 
-외부 라이브러리에 의존하지 않고, Orbit만의 **Container**와 **Instance** 개념을 도입하여 더욱 가볍고 직관적인 SaaS 환경을 제공합니다. 
+기존의 복잡한 Tenancy 패키지들의 한계를 뛰어넘어, Orbit만의 **Container**와 **Instance** 개념으로 더욱 직관적인 SaaS 아키텍처를 제공합니다.
 
-## 🌟 왜 Orbit SaaS인가요?
+## 🌟 핵심 개념
 
-- **독립적인 아키텍처**: 기존의 무거운 Tenancy 패키지들을 걷어내고, Laravel의 코어 기능을 최대한 활용하도록 밑바닥부터 다시 설계했습니다.
-- **컨테이너 & 인스턴스**: 하나의 서비스 규격인 'Container'를 정의하고, 이를 기반으로 실제 사용자(또는 그룹)를 위한 독립된 공간인 'Instance'를 생성합니다.
-- **다이나믹 테마 엔진**: 각 인스턴스마다 서로 다른 테마와 UI를 적용할 수 있는 강력한 시스템이 내장되어 있습니다.
-- **지능형 하이퍼바이저**: 미들웨어를 통해 현재 접속한 도메인이나 식별자를 바탕으로 즉시 인스턴스 환경을 로드합니다.
+### 1. 컨테이너 (Container)
+서비스의 '규격' 또는 '템플릿'입니다. 예를 들어 '블로그 서비스'라는 규격을 정의하면, 이는 하나의 컨테이너가 됩니다.
+- **등록 방식**: 패키지의 `ServiceProvider`에서 `Saas::registerContainer([...])`를 호출하여 런타임에 등록하거나, 지정된 경로의 `container.json` 파일을 통해 자동으로 로드됩니다.
+- **설정 항목**: 상호 격리 전략(DB 분리 등), 허용할 라우팅 전략(도메인, 서브도메인, 경로), 사용할 서비스 프로바이더 등을 정의합니다.
 
-## 🚀 시작하기
+### 2. 인스턴스 (Instance)
+컨테이너라는 규격을 바탕으로 생성된 '실제 서비스 주체'입니다.
+- **생성 흐름**: `php artisan saas:instance create` 명령을 실행하면, 현재 엔진에 등록된 모든 컨테이너 목록이 표시됩니다. 사용자는 여기서 컨테이너를 선택하고 이름과 라우팅 정보(도메인 등)를 입력하여 인스턴스를 즉시 생성합니다.
+- **자동 식별**: 사용자가 요청을 보내면 `saas` 미들웨어가 도메인이나 경로를 분석하여 그에 맞는 인스턴스를 찾고, 해당 인스턴스의 환경(DB 연결, 테마 등)을 부팅합니다.
 
-### 설치
+### 3. 테마 엔진 (Theme System)
+각 인스턴스는 자신만의 고유한 디자인을 가질 수 있습니다.
+- **등록**: `Theme::register('container_slug', 'theme_name', ThemeServiceProvider::class)`를 통해 특정 컨테이너 전용 테마를 등록합니다.
+- **부팅**: 인스턴스 활성화 시, 선택된 테마의 `ServiceProvider`가 런타임에 `app()->register()`되어 뷰 경로와 에셋이 인스턴스에 최적화됩니다.
 
-```bash
-composer require cms-orbit/saas
+## 🚀 개발자 가이드
+
+### 외부 패키지에서 컨테이너 등록하기
+
+SaaS 기반의 새로운 서비스 패키지를 만든다면 아래와 같이 등록하세요.
+
+```php
+// YourServiceProvider.php
+public function boot()
+{
+    Saas::registerContainer([
+        'name' => 'My Service',
+        'slug' => 'my-service',
+        'providers' => [
+            \MyPackage\Providers\ServiceRuntimeServiceProvider::class,
+        ],
+        // ... 기타 설정
+    ]);
+}
 ```
 
-### 기본 설정
-
-설정 파일을 배포하여 필요한 옵션들을 조정하세요.
+### 인스턴스 생성하기 (CLI)
 
 ```bash
-php artisan vendor:publish --tag=saas-config
+php artisan saas:instance create
+# 1. 인스턴스 이름 입력
+# 2. 등록된 컨테이너 중 하나 선택 (위에서 등록된 'my-service' 등이 표시됨)
+# 3. 라우팅 전략(Domain/Path 등) 및 값 설정
 ```
 
-## 🛠 주요 기능 활용
+## 🔐 격리 전략 및 미들웨어
 
-### 컨테이너(Container) 생성
-
-서비스의 틀이 될 컨테이너 모델을 생성합니다.
-
-```bash
-php artisan saas:make-container BlogContainer
-```
-
-### 인스턴스(Instance) 관리
-
-실제 사용자가 사용할 인스턴스를 생성하거나 관리할 수 있습니다.
-
-```bash
-php artisan saas:create-instance my-awesome-blog
-```
-
-### 미들웨어 적용
-
-라우트 그룹에 `saas` 미들웨어를 추가하면 자동으로 인스턴스 식별이 시작됩니다.
+라우트 그룹에 `saas` 미들웨어를 적용하는 것만으로 모든 마법이 시작됩니다.
 
 ```php
 Route::middleware(['web', 'saas'])->group(function () {
-    // 인스턴스별 비즈니스 로직
+    // 현재 활성화된 인스턴스 정보는 Saas::currentInstance()로 접근 가능
 });
 ```
 
